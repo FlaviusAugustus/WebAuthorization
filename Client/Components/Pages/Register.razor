@@ -1,0 +1,58 @@
+@page "/register"
+
+@rendermode InteractiveServer
+
+<div class="container-fluid d-flex justify-content-center align-items-center mt-5">
+    <div class="card rounded-2 p-5 col-12 col-md-6 col-xl-3">
+        <h3>Register</h3>
+        <EditForm Model="@_requestModel" OnValidSubmit="@LogIn" FormName="form">
+            <div class="d-flex flex-column justify-content-start gap-3">
+                <div class="position-relative">
+                    <label>First Name</label>
+                    <InputText @bind-Value="@_requestModel.FirstName" class="w-100"/>
+                </div>
+                <div class="position-relative">
+                    <label>Last Name</label>
+                    <InputText @bind-Value="@_requestModel.LastName" class="w-100"/>
+                </div>
+                <div class="position-relative">
+                    <label>Username</label>
+                    <InputText @bind-Value="@_requestModel.UserName" class="w-100"/>
+                </div>
+                <div class="position-relative">
+                    <label>Email</label>
+                    <InputText @bind-Value="@_requestModel.Email" class="w-100"/>
+                </div>
+                <div class="position-relative">
+                    <label>Password</label>
+                    <InputText type="password" @bind-Value="@_requestModel.Password" class="w-100"/>
+                </div>
+                <div class="position-relative">
+                    <label>Repeat Password</label>
+                    <InputText type="password" @bind-Value="@_requestModel.PasswordRepeat" class="w-100"/>
+                </div>
+                <button class="btn btn-primary w-50" type="submit">Submit</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private RegisterModel _requestModel = new();
+
+    private async Task LogIn()
+    {
+        if (_requestModel.PasswordRepeat != _requestModel.Password)
+        {
+            return;
+        }
+         
+        var res = await ApiService.Client.PostAsJsonAsync("/api/auth/register", _requestModel);
+        var loginResponse = await res.Content.ReadFromJsonAsync<AuthModel>();
+        if (loginResponse?.IsAuthenticated == true)
+        {
+        }
+    }
+
+}
+
