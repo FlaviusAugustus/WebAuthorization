@@ -1,0 +1,22 @@
+version: "2.4"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: ./Api/Dockerfile
+    ports:
+      - 8080:8080
+
+  frontend:
+    build:
+      context: .
+      dockerfile : ./Client/Dockerfile
+     
+    depends_on:
+      - backend
+    ports:
+      - 80:80
+    
+
+    
