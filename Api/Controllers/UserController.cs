@@ -32,6 +32,17 @@ public class AccountController(IJwtAuthenticationService userService) : Controll
             );
     }
 
+    [HttpPost]
+    [Route("refresh")]
+    public async Task<IActionResult> RefreshAsync(string accessToken, string refreshToken)
+    {
+        var result = await userService.RefreshAsync(refreshToken, accessToken);
+        return result.Match<IActionResult>(
+            success => Ok(success),
+                fail => Unauthorized(fail.Message)
+        );
+    }
+
     [HttpGet]
     [Route("get-user-roles")]
     [Authorize(Policy = nameof(Policy.CanSeeUserRoles))]

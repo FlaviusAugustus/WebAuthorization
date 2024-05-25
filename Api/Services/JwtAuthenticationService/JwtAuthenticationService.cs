@@ -5,17 +5,21 @@ using System.Text;
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Models;
 using WebAppAuthorization.Constants;
+using WebAppAuthorization.Extensions;
 using WebAppAuthorization.Options;
+using WebAppAuthorization.Persistence.Repositories.RefreshTokenRepository;
 using WebAppAuthorization.Services.DateTimeProvider;
 
 namespace WebAppAuthorization.Services.JwtAuthenticationService;
 
 public class JwtAuthenticationService(UserManager<User> userManager, RoleManager<IdentityRole<Guid>> roleManager,
-    IOptions<Jwt> jwt, IDateTimeProvider dateTimeProvider) : IJwtAuthenticationService
+    IOptions<Jwt> jwt, IDateTimeProvider dateTimeProvider, IRefreshTokenRepository tokenRepository,
+    TokenValidationParameters tokenValidationParameters) : IJwtAuthenticationService
 {
     private readonly RoleManager<IdentityRole<Guid>> _roleManager = roleManager;
     private readonly Jwt _jwtConfig = jwt.Value;
@@ -32,6 +36,50 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
     {
         var user = await userManager.FindByNameAsync(roleModel.UserName);
         return await ManageRole(user, roleModel, RemoveUserFromRole);
+    }
+
+    public async Task<Result<AuthModel>> RefreshAsync(string refreshToken, string accessToken)
+    {
+        var tokenHash = RefreshTokenHelpers.Hashed(refreshToken);
+        var accessTokenHash = RefreshTokenHelpers.Hashed(accessToken);
+
+        var tokenEntity = await tokenRepository.GetByTokenHash(tokenHash);
+
+        if (tokenEntity is null)
+            return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
+        
+        if (tokenEntity.Revoked)
+            return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
+
+        if (tokenEntity.AccessTokenHash != accessTokenHash)
+            return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
+
+        if (tokenEntity.ExpirationDate < dateTimeProvider.GetCurrentTime())
+            return new Result<AuthModel>(new ArgumentException("Token expired, login again"));
+
+        var userClaims = GetClaimsPrincipalFromToken(accessToken);
+
+        if (userClaims is null)
+            return new Result<AuthModel>(new ArgumentException("Invalid access token"));
+        
+        var userId = userClaims.Claims.Single(c => c.Type == "name").Value;
+        var user = userManager.Users.ToList().SingleOrDefault(u => u.Id.ToString() == userId);
+
+        if (user is null)
+            return new Result<AuthModel>(new ArgumentException("Invalid user token"));
+
+        tokenEntity.Revoked = true;
+        await tokenRepository.SaveAsync();
+        
+        return new Result<AuthModel>(await CreateAuthResultForUser(user));
+    }
+
+    private ClaimsPrincipal? GetClaimsPrincipalFromToken(string token)
+    {
+        var accessTokenHandler = new JwtSecurityTokenHandler();
+
+        try { return accessTokenHandler.ValidateToken(token, tokenValidationParameters, out _); }
+        catch { return null; }
     }
 
     public async Task<Result<Unit>> AddToRoleAsync(ManageRoleModel roleModel)
@@ -84,7 +132,7 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
 
         if (await userManager.CheckPasswordAsync(user, requestModel.Password))
         {
-            var token = await CreateTokenForUser(user);
+            var token = await CreateAuthResultForUser(user);
             return new Result<AuthModel>(token);
         }
         
@@ -92,17 +140,18 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
         return new Result<AuthModel>(invalidCredentialsError);
     }
 
-    private async Task<AuthModel> CreateTokenForUser(User user)
+    private async Task<AuthModel> CreateAuthResultForUser(User user)
     {
-        var roles = await userManager.GetRolesAsync(user);
-        return new AuthModel
-        {
-            IsAuthenticated = true,
-            Token = new JwtSecurityTokenHandler().WriteToken(await CreateJwtToken(user)),
-            Email = user.Email,
-            UserName = user.UserName,
-            Roles = roles.ToList(),
-        };
+        var token = await CreateJwtToken(user);
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        var refreshToken = Guid.NewGuid().ToString();
+
+        var refreshTokenEntity = RefreshTokenHelpers.NewTokenValue(refreshToken, accessToken, dateTimeProvider.GetCurrentTime().AddDays(10));
+        
+        tokenRepository.Add(refreshTokenEntity);
+        await tokenRepository.SaveAsync();
+        
+        return new AuthModel { Token = accessToken,  RefreshToken = refreshToken };
     }
 
     private async Task<JwtSecurityToken> CreateJwtToken(User user)
@@ -171,7 +220,7 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
     {
         foreach (var validator in userManager.PasswordValidators)
         {
-            var res = await  validator.ValidateAsync(userManager, null, pass);
+            var res = await validator.ValidateAsync(userManager, null, pass);
             
             if (!res.Succeeded) return false;
         }

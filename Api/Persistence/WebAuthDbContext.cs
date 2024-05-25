@@ -9,6 +9,7 @@ namespace WebAppAuthorization.Persistence;
 public class WebAuthDbContext(DbContextOptions<WebAuthDbContext> options, IConfiguration config)
     : IdentityDbContext<User, IdentityRole<Guid>, Guid>(options)
 {
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseSqlite(config.GetConnectionString("Database"));

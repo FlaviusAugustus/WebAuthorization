@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using Shared.Models;
 using WebAppAuthorization.Options;
 using WebAppAuthorization.Persistence;
+using WebAppAuthorization.Persistence.Repositories.RefreshTokenRepository;
 using WebAppAuthorization.Services.DateTimeProvider;
 using WebAppAuthorization.Services.JwtAuthenticationService;
 
@@ -46,11 +47,32 @@ builder.Services.AddDbContext<WebAuthDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("database"));
 });
 
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
 builder.Services.AddScoped<IJwtAuthenticationService, JwtAuthenticationService>();
 builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
 builder.Services.Configure<Jwt>(builder.Configuration.GetSection(Jwt.JwtConfig));
 
+var jwtConfig = builder.Configuration
+    .GetSection(Jwt.JwtConfig)
+    .Get<Jwt>();
+
+var tokenValidationParameters = new TokenValidationParameters
+{
+    ValidateIssuerSigningKey = true,
+    ValidateIssuer = true,
+    ValidateAudience = true,
+    ValidateLifetime = true,
+    ClockSkew = TimeSpan.Zero,
+
+    ValidIssuer = jwtConfig!.Issuer,
+    ValidAudience = jwtConfig.Audience,
+    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig.Key))
+};
+
+builder.Services.AddSingleton(tokenValidationParameters);
+    
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -58,24 +80,14 @@ builder.Services.AddAuthentication(options =>
 })
     .AddJwtBearer(opts =>
     {
-        var jwtConfig = builder.Configuration
-            .GetSection(Jwt.JwtConfig)
-            .Get<Jwt>();
         
         opts.RequireHttpsMetadata = false;
         opts.SaveToken = false;
-        opts.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero,
-
-            ValidIssuer = jwtConfig!.Issuer,
-            ValidAudience = jwtConfig.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig.Key))
-        };
+        opts.TokenValidationParameters = tokenValidationParameters;
+    }).AddGoogle(googleOptions =>
+    {
+        googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];
+        googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
     });
 
 builder.Services.AddIdentity<User, IdentityRole<Guid>>().AddEntityFrameworkStores<WebAuthDbContext>();

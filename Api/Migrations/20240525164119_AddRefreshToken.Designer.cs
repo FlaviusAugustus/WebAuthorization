@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WebAppAuthorization.Persistence;
 
@@ -10,9 +11,11 @@ using WebAppAuthorization.Persistence;
 namespace WebAppAuthorization.Migrations
 {
     [DbContext(typeof(WebAuthDbContext))]
-    partial class WebAuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240525164119_AddRefreshToken")]
+    partial class AddRefreshToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
@@ -46,22 +49,22 @@ namespace WebAppAuthorization.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("475f9594-0dff-4efc-ba88-f78b7ec59985"),
-                            ConcurrencyStamp = "b846eba8-43c2-4729-9a43-114e50ca2bbf",
+                            Id = new Guid("dadfc0f6-3ebe-4956-9550-cfa85afdeb7c"),
+                            ConcurrencyStamp = "09731215-d612-4339-9509-0ded10c1a364",
                             Name = "User",
                             NormalizedName = "USER"
                         },
                         new
                         {
-                            Id = new Guid("2775b38f-d7dc-4322-86bd-4bab220dca5f"),
-                            ConcurrencyStamp = "cf0dcd89-73b5-4c5f-8509-d38ad5ddacc6",
+                            Id = new Guid("4ba9137a-5225-48ad-a0d6-9c2b0c519f3e"),
+                            ConcurrencyStamp = "e23cf5b5-52fd-4a31-988c-367f6ede2f12",
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         },
                         new
                         {
-                            Id = new Guid("dd5d93fd-3175-471d-99ba-3d1e4c4ef3ba"),
-                            ConcurrencyStamp = "42d563b0-90e7-4dcf-8088-fc61a809df30",
+                            Id = new Guid("3a176cd2-4dfc-4cb7-8848-16187c2ca8bd"),
+                            ConcurrencyStamp = "438a2999-3a99-49ee-b129-3b2f0aef6434",
                             Name = "Moderator",
                             NormalizedName = "MODERATOR"
                         });
@@ -164,34 +167,6 @@ namespace WebAppAuthorization.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
-                });
-
-            modelBuilder.Entity("Shared.Models.RefreshToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AccessTokenHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("ExpirationDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Revoked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Shared.Models.User", b =>

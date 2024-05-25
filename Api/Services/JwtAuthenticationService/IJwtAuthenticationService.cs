@@ -8,6 +8,7 @@ public interface IJwtAuthenticationService
 {
     Task<Result<User>> RegisterAsync(RegisterModel registerModel);
     Task<Result<AuthModel>> GetTokenAsync(TokenRequestModel requestModel);
+    Task<Result<AuthModel>> RefreshAsync(string refreshToken, string acessToken);
     Task<Result<Unit>> AddToRoleAsync(ManageRoleModel roleModel);
     Task<Result<Unit>> RemoveRoleAsync(ManageRoleModel roleModel);
     Task<IList<string>> GetUserRoles(string userName); 
