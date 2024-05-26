@@ -38,26 +38,17 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
         return await ManageRole(user, roleModel, RemoveUserFromRole);
     }
 
-    public async Task<Result<AuthModel>> RefreshAsync(string refreshToken, string accessToken)
+    public async Task<Result<AuthModel>> RefreshAsync(AuthModel authModel)
     {
-        var tokenHash = RefreshTokenHelpers.Hashed(refreshToken);
-        var accessTokenHash = RefreshTokenHelpers.Hashed(accessToken);
+        var tokenHash = RefreshTokenHelpers.Hashed(authModel.RefreshToken);
+        var accessTokenHash = RefreshTokenHelpers.Hashed(authModel.Token);
 
         var tokenEntity = await tokenRepository.GetByTokenHash(tokenHash);
 
-        if (tokenEntity is null)
+        if (!IsRefreshTokenValid(tokenEntity, accessTokenHash))
             return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
-        
-        if (tokenEntity.Revoked)
-            return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
-
-        if (tokenEntity.AccessTokenHash != accessTokenHash)
-            return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
-
-        if (tokenEntity.ExpirationDate < dateTimeProvider.GetCurrentTime())
-            return new Result<AuthModel>(new ArgumentException("Token expired, login again"));
-
-        var userClaims = GetClaimsPrincipalFromToken(accessToken);
+            
+        var userClaims = GetClaimsPrincipalFromToken(authModel.Token);
 
         if (userClaims is null)
             return new Result<AuthModel>(new ArgumentException("Invalid access token"));
@@ -68,11 +59,16 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
         if (user is null)
             return new Result<AuthModel>(new ArgumentException("Invalid user token"));
 
-        tokenEntity.Revoked = true;
+        tokenEntity!.Revoked = true;
         await tokenRepository.SaveAsync();
         
         return new Result<AuthModel>(await CreateAuthResultForUser(user));
     }
+
+    private bool IsRefreshTokenValid(RefreshToken? refreshToken, string accessTokenHash) =>
+        refreshToken is not null && !refreshToken.Revoked &&
+            refreshToken.ExpirationDate > dateTimeProvider.GetCurrentTime() &&
+            refreshToken.AccessTokenHash == accessTokenHash;
 
     private ClaimsPrincipal? GetClaimsPrincipalFromToken(string token)
     {
