@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using WebAppAuthorization.Persistence;
 
@@ -10,9 +11,11 @@ using WebAppAuthorization.Persistence;
 namespace WebAppAuthorization.Migrations
 {
     [DbContext(typeof(WebAuthDbContext))]
-    partial class WebAuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240603165128_TokenFamilyMigration")]
+    partial class TokenFamilyMigration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");

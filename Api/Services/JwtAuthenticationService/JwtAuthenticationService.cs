@@ -17,11 +17,10 @@ using WebAppAuthorization.Services.DateTimeProvider;
 
 namespace WebAppAuthorization.Services.JwtAuthenticationService;
 
-public class JwtAuthenticationService(UserManager<User> userManager, RoleManager<IdentityRole<Guid>> roleManager,
-    IOptions<Jwt> jwt, IDateTimeProvider dateTimeProvider, IRefreshTokenRepository tokenRepository,
+public class JwtAuthenticationService(UserManager<User> userManager, IOptions<Jwt> jwt,
+    IDateTimeProvider dateTimeProvider, IRefreshTokenRepository tokenRepository,
     TokenValidationParameters tokenValidationParameters) : IJwtAuthenticationService
 {
-    private readonly RoleManager<IdentityRole<Guid>> _roleManager = roleManager;
     private readonly Jwt _jwtConfig = jwt.Value;
 
     public async Task<IList<string>> GetUserRoles(string userName)
@@ -47,9 +46,15 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
 
         if (tokenEntity is null)
             return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
-        
+
         if (tokenEntity.Revoked)
+        {
+            await InvalidateTokenFamily(tokenEntity.TokenRootId);
             return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
+        }
+
+        tokenEntity.Revoked = true;
+        await tokenRepository.SaveAsync();
 
         if (tokenEntity.AccessTokenHash != accessTokenHash)
             return new Result<AuthModel>(new ArgumentException("Invalid refresh token"));
@@ -67,11 +72,20 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
 
         if (user is null)
             return new Result<AuthModel>(new ArgumentException("Invalid user token"));
-
-        tokenEntity.Revoked = true;
-        await tokenRepository.SaveAsync();
         
-        return new Result<AuthModel>(await CreateAuthResultForUser(user));
+        return new Result<AuthModel>(await CreateAuthResultForUser(user, tokenEntity.TokenRootId));
+    }
+
+    private async Task InvalidateTokenFamily(string rootToken)
+    {
+        var tokenFamily = await tokenRepository.GetTokenFamily(rootToken);
+
+        foreach (var refreshToken in tokenFamily)
+        {
+            refreshToken.Revoked = true;
+        }
+
+        await tokenRepository.SaveAsync();
     }
 
     private ClaimsPrincipal? GetClaimsPrincipalFromToken(string token)
@@ -140,13 +154,14 @@ public class JwtAuthenticationService(UserManager<User> userManager, RoleManager
         return new Result<AuthModel>(invalidCredentialsError);
     }
 
-    private async Task<AuthModel> CreateAuthResultForUser(User user)
+    private async Task<AuthModel> CreateAuthResultForUser(User user, string? tokenRoot = null)
     {
         var token = await CreateJwtToken(user);
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
         var refreshToken = Guid.NewGuid().ToString();
 
         var refreshTokenEntity = RefreshTokenHelpers.NewTokenValue(refreshToken, accessToken, dateTimeProvider.GetCurrentTime().AddDays(10));
+        refreshTokenEntity.TokenRootId = tokenRoot ?? refreshTokenEntity.Id.ToString();
         
         tokenRepository.Add(refreshTokenEntity);
         await tokenRepository.SaveAsync();

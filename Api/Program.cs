@@ -84,15 +84,18 @@ builder.Services.AddAuthentication(options =>
         opts.RequireHttpsMetadata = false;
         opts.SaveToken = false;
         opts.TokenValidationParameters = tokenValidationParameters;
-    }).AddGoogle(googleOptions =>
-    {
-        googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];
-        googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
     });
 
 builder.Services.AddIdentity<User, IdentityRole<Guid>>().AddEntityFrameworkStores<WebAuthDbContext>();
 
+
 var app = builder.Build();
+
+using(var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<WebAuthDbContext>();
+    dbContext.Database.EnsureCreated();
+}
 
 app.UseSwagger();
 app.UseSwaggerUI();
