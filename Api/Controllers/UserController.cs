@@ -34,9 +34,9 @@ public class AccountController(IJwtAuthenticationService userService) : Controll
 
     [HttpPost]
     [Route("refresh")]
-    public async Task<IActionResult> RefreshAsync(string accessToken, string refreshToken)
+    public async Task<IActionResult> RefreshAsync(AuthModel authModel)
     {
-        var result = await userService.RefreshAsync(refreshToken, accessToken);
+        var result = await userService.RefreshAsync(authModel);
         return result.Match<IActionResult>(
             success => Ok(success),
                 fail => Unauthorized(fail.Message)
